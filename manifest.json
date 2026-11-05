@@ -1,7 +1,7 @@
 {
   "name": "Label Studio",
   "short_name": "Label Studio",
-  "description": "Generate barcodes & GS1 Data Matrix codes with ease",
+  "description": "Generate barcodes, QR codes, and Data Matrix symbols with ease",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

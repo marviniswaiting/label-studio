@@ -5,7 +5,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <meta name="theme-color" content="#181c27" />
-  <meta name="description" content="Generate barcodes &amp; GS1 Data Matrix codes with ease" />
+  <meta name="description" content="Generate barcodes, QR codes, and Data Matrix symbols with ease" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Label Studio" />
@@ -193,7 +195,7 @@
 
     @media (min-width: 1024px) {
       .ctrl {
-        grid-template-columns: 1.2fr 2fr 1.1fr 1.1fr auto;
+        grid-template-columns: 1.1fr 1.8fr .9fr .9fr .9fr auto;
       }
     }
 
@@ -731,7 +733,7 @@
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-min, 170px)), 1fr));
-      gap: 12px
+      gap: var(--code-gap, 24px)
     }
 
     .card {
@@ -797,6 +799,19 @@
       display: block;
       max-width: 100%;
       height: auto
+    }
+
+    .qr-shell {
+      display: inline-block;
+      flex: 0 0 auto;
+      line-height: 0;
+      background: #fff
+    }
+
+    .qr-shell canvas,
+    .qr-shell img {
+      max-width: none;
+      image-rendering: pixelated
     }
 
     .card-lbl {
@@ -1232,7 +1247,7 @@
       </div>
       <div>
         <div class="nav-title">Label Studio</div>
-        <div class="nav-sub">Generate barcodes &amp; GS1 Data Matrix codes with ease</div>
+        <div class="nav-sub">Generate barcodes, QR codes &amp; Data Matrix symbols with ease</div>
       </div>
     </div>
     <div class="nav-sp"></div>
@@ -1404,6 +1419,31 @@
             </svg></button>
         </div>
         <div class="cn">Height of the barcode</div>
+      </div>
+
+      <!-- Code Spacing -->
+      <div class="cg">
+        <div class="cl">Code Spacing
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+            <path d="M8 12h8M8 12l2-2M8 12l2 2M16 12l-2-2M16 12l-2 2" />
+          </svg>
+        </div>
+        <div class="stp">
+          <input type="number" class="stv" id="gap-val" value="24" min="12" max="96" step="4" />
+          <span class="stu">px</span>
+          <button class="stb" id="gap-minus" title="Decrease spacing"><svg viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg></button>
+          <button class="stb" id="gap-plus" title="Increase spacing"><svg viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg></button>
+        </div>
+        <div class="cn">Separation between neighbouring codes</div>
       </div>
 
       <!-- Actions -->
@@ -1578,27 +1618,84 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bwip-js@3/dist/bwip-js-min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="./vendor/JsBarcode.all.min.js"></script>
+  <script src="./vendor/qrcode.min.js"></script>
+  <script src="./vendor/bwip-js-min.js"></script>
+  <script src="./vendor/jspdf.umd.min.js"></script>
   <script>
     // ── Barcode type ─────────────────────────────────────────────────────────────
     var barcodeType = 'Code 128';
+    var QR_QUIET_MODULES = 4;
+
+    function createQr(container, text, mod) {
+      var cell = Math.max(2, mod);
+      var shell = document.createElement('div');
+      shell.className = 'qr-shell';
+      container.appendChild(shell);
+
+      var probe = new QRCode(shell, {
+        text: text,
+        width: 1,
+        height: 1,
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      var moduleCount = probe._oQRCode.getModuleCount();
+      var size = moduleCount * cell;
+      shell.innerHTML = '';
+      shell.style.padding = (QR_QUIET_MODULES * cell) + 'px';
+      shell.dataset.moduleCount = String(moduleCount);
+      shell.dataset.quietModules = String(QR_QUIET_MODULES);
+      shell.dataset.moduleSize = String(cell);
+      new QRCode(shell, {
+        text: text,
+        width: size,
+        height: size,
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      return shell;
+    }
+
+    function createQrExportCanvas(text, mod) {
+      var host = document.createElement('div');
+      host.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+      document.body.appendChild(host);
+      var shell = createQr(host, text, mod);
+      var source = shell.querySelector('canvas');
+      if (!source) {
+        document.body.removeChild(host);
+        throw new Error('QR canvas rendering is unavailable');
+      }
+      var quietPx = QR_QUIET_MODULES * Number(shell.dataset.moduleSize);
+      var canvas = document.createElement('canvas');
+      canvas.width = source.width + quietPx * 2;
+      canvas.height = source.height + quietPx * 2;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(source, quietPx, quietPx);
+      document.body.removeChild(host);
+      return canvas;
+    }
+
+    function canonicalEan13(value) {
+      var text = String(value);
+      if (!/^\d{12,13}$/.test(text)) throw new Error('EAN-13 requires exactly 12 or 13 digits.');
+      var body = text.slice(0, 12);
+      var sum = 0;
+      for (var i = 0; i < body.length; i++) sum += Number(body[i]) * (i % 2 === 0 ? 1 : 3);
+      var check = String((10 - (sum % 10)) % 10);
+      if (text.length === 13 && text[12] !== check) throw new Error('EAN-13 check digit is invalid.');
+      return body + check;
+    }
 
     // ── Scannable barcode rendering ──────────────────────────────────────────────
     function renderBarcode(container, text, mod, h) {
       container.innerHTML = '';
 
       if (barcodeType === 'QR Code') {
-        var cell = Math.max(2, mod);
-        var size = cell * 33;
-        var wrap = document.createElement('div');
-        wrap.style.cssText = 'display:inline-block;background:#fff;padding:' + cell + 'px';
-        container.appendChild(wrap);
         try {
-          new QRCode(wrap, { text: text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
-        } catch (e) { wrap.textContent = 'Invalid for QR'; }
+          createQr(container, text, mod);
+        } catch (e) { container.textContent = 'Invalid for QR'; }
         return;
       }
 
@@ -1613,7 +1710,8 @@
             padding: 2
           });
         } catch (e) {
-          container.innerHTML = '<span style="font-size:11px;color:#ef4444">' + e.message + '</span>';
+          container.textContent = e.message;
+          container.style.cssText = 'font-size:11px;color:#ef4444';
         }
         return;
       }
@@ -1625,13 +1723,6 @@
       };
       var fmt = formatMap[barcodeType] || 'CODE128';
       var encodeText = text;
-
-      if (barcodeType === 'EAN-13') {
-        var digits = text.replace(/\D/g, '');
-        if (digits.length === 13) digits = digits.slice(0, 12);
-        digits = (digits + '000000000000').slice(0, 12);
-        encodeText = digits;
-      }
 
       var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       container.appendChild(svg);
@@ -1645,8 +1736,10 @@
           background: '#ffffff',
           lineColor: '#111111'
         });
+        svg.dataset.encodedValue = encodeText;
       } catch (e) {
-        container.innerHTML = '<span style="font-size:11px;color:#ef4444">' + e.message + '</span>';
+        container.textContent = e.message;
+        container.style.cssText = 'font-size:11px;color:#ef4444';
       }
     }
 
@@ -1664,10 +1757,8 @@
         } else if (/^repeat:/i.test(inn)) {
           var parts = inn.split(':');
           var vals = parts[1].split(',').map(function (s) { return s.trim(); });
-          var n = parseInt(parts[2], 10) || 1;
-          var expanded = [];
-          for (var k = 0; k < n; k++) for (var v = 0; v < vals.length; v++) expanded.push(vals[v]);
-          tokens.push({ t: 'ls', items: expanded });
+          var n = parseInt(parts[2], 10);
+          tokens.push({ t: 'ls', items: vals, repeat: n });
 
         } else if (/;/.test(inn)) {
           tokens.push({ t: 'ls', items: inn.split(';').map(function (s) { return s.trim(); }) });
@@ -1687,7 +1778,39 @@
         for (var v = tok.s; v <= tok.e; v += tok.st) vals.push(String(v));
         return vals;
       }
-      return tok.items.slice();
+      var items = [];
+      var repeats = tok.repeat === undefined ? 1 : tok.repeat;
+      for (var k = 0; k < repeats; k++) items.push.apply(items, tok.items);
+      return items;
+    }
+
+    var MAX_CODES = 1000;
+    function validateExpansion(tokens) {
+      var total = 1;
+      tokens.filter(function (tok) { return tok.t !== 'l'; }).forEach(function (tok) {
+        var count;
+        if (tok.t === 'r') {
+          if (![tok.s, tok.st, tok.e].every(Number.isSafeInteger)) {
+            throw new Error('Range start, step, and end must be safe integers.');
+          }
+          if (tok.st <= 0) throw new Error('Range step must be greater than zero.');
+          if (tok.e < tok.s) throw new Error('Range end must not be smaller than its start.');
+          if (tok.s < tok.e && tok.s + tok.st <= tok.s) {
+            throw new Error('Range step must advance to the next safe integer.');
+          }
+          count = Math.floor((tok.e - tok.s) / tok.st) + 1;
+          if (!Number.isSafeInteger(count) || count <= 0) {
+            throw new Error('Range size must be a safe positive integer.');
+          }
+        } else {
+          var repeats = tok.repeat === undefined ? 1 : tok.repeat;
+          if (!Number.isInteger(repeats) || repeats <= 0) throw new Error('Repeat count must be a positive integer.');
+          count = tok.items.length * repeats;
+        }
+        total *= count;
+        if (total > MAX_CODES) throw new Error('A template can generate at most 1000 codes.');
+      });
+      return total;
     }
 
     function cartesian(arrays) {
@@ -1699,6 +1822,7 @@
     }
 
     function expand(tokens) {
+      validateExpansion(tokens);
       var iters = tokens.filter(function (t) { return t.t !== 'l'; });
       if (!iters.length) return [tokens.map(function (t) { return t.v || ''; }).join('')];
 
@@ -1722,27 +1846,40 @@
 
     function generate() {
       var tpl = document.getElementById('tpl-input').value;
-      var mod = getI('mod-val'), h = getI('h-val');
-      codes = expand(parseTpl(tpl));
-
-      var cardMin = Math.max(170, mod * 30);
-      document.getElementById('grid').style.setProperty('--card-min', cardMin + 'px');
-
+      var mod = getI('mod-val'), h = getI('h-val'), gap = getI('gap-val');
       var grid = document.getElementById('grid');
       grid.innerHTML = '';
+      grid.style.setProperty('--code-gap', Math.min(96, Math.max(12, gap)) + 'px');
+      try {
+        codes = expand(parseTpl(tpl));
+        if (barcodeType === 'EAN-13') codes = codes.map(canonicalEan13);
+      } catch (error) {
+        codes = [];
+        document.getElementById('sr-text').textContent = error.message;
+        document.getElementById('sbar-n').textContent = '0 codes generated';
+        document.getElementById('sr-range').textContent = '';
+        toast(error.message);
+        return;
+      }
       codes.forEach(function (code, i) {
         var card = document.createElement('div');
         card.className = 'card';
         card.innerHTML =
           '<div class="card-hdr"><span class="card-num">#' + (i + 1) + '</span>' +
-          '<button class="card-copy" data-code="' + code.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '" title="Copy">' +
+          '<button class="card-copy" title="Copy">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
           '</button></div>' +
           '<div class="card-bc"></div>' +
-          '<div class="card-lbl">' + code + '</div>';
+          '<div class="card-lbl"></div>';
+        card.querySelector('.card-copy').dataset.code = code;
+        card.querySelector('.card-lbl').textContent = code;
         grid.appendChild(card);
         renderBarcode(card.querySelector('.card-bc'), code, mod, h);
       });
+      var maxCodeWidth = Array.from(grid.querySelectorAll('.card-bc')).reduce(function (max, el) {
+        return Math.max(max, el.scrollWidth);
+      }, mod * 30);
+      grid.style.setProperty('--card-min', Math.max(170, maxCodeWidth + 22) + 'px');
       var seen = {}, dups = 0; codes.forEach(function (c) { seen[c] ? dups++ : seen[c] = 1; });
       var n = codes.length + ' codes generated';
       if (dups > 0) n += ' · ' + dups + ' duplicate' + (dups > 1 ? 's' : '');
@@ -1785,6 +1922,8 @@
     document.getElementById('mod-plus').addEventListener('click', function () { stepVal('mod-val', 1, 1, 20); });
     document.getElementById('h-minus').addEventListener('click', function () { stepVal('h-val', -5, 10, 400); });
     document.getElementById('h-plus').addEventListener('click', function () { stepVal('h-val', 5, 10, 400); });
+    document.getElementById('gap-minus').addEventListener('click', function () { stepVal('gap-val', -4, 12, 96); });
+    document.getElementById('gap-plus').addEventListener('click', function () { stepVal('gap-val', 4, 12, 96); });
 
     // Stepper input change handlers
     document.getElementById('mod-val').addEventListener('change', function () {
@@ -1795,6 +1934,11 @@
     document.getElementById('h-val').addEventListener('change', function () {
       var v = parseInt(this.value, 10) || 80;
       this.value = Math.min(400, Math.max(10, v));
+      autoRun();
+    });
+    document.getElementById('gap-val').addEventListener('change', function () {
+      var v = parseInt(this.value, 10) || 24;
+      this.value = Math.min(96, Math.max(12, v));
       autoRun();
     });
 
@@ -1847,36 +1991,48 @@
       closeAll();
       toast('Generating PDF…');
 
-      var mod = getI('mod-val'), h = getI('h-val');
+      var mod = getI('mod-val'), h = getI('h-val'), gapPx = getI('gap-val');
       var doc = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       var pageW = 210, pageH = 297;
-      var margin = 10, gap = 6, labelH = 5;
-      var bcWpx = mod * 80;
-      var bcHpx = barcodeType === 'QR Code' || barcodeType === 'Data Matrix' ? mod * 33 : h;
-      var bcWmm = Math.max(30, bcWpx * 0.264);
-      var bcHmm = bcHpx * 0.264;
-      var cellW = bcWmm + gap;
-      var cellH = bcHmm + labelH + gap + 4;
-      var cols = Math.max(1, Math.floor((pageW - 2 * margin + gap) / cellW));
-      var rows = Math.max(1, Math.floor((pageH - 2 * margin + gap) / cellH));
-      var perPage = cols * rows;
+      var margin = 10, gap = Math.min(96, Math.max(12, gapPx)) * 0.264, labelH = 5;
 
       var pending = codes.length;
       var images = new Array(codes.length);
+      var failures = [];
 
       function finish() {
-        var page = 0;
+        if (failures.length) {
+          toast(failures.length + ' code' + (failures.length === 1 ? '' : 's') + ' could not be rendered.');
+          return;
+        }
+        var rendered = images.filter(Boolean);
+        if (!rendered.length) {
+          toast('No codes could be rendered.');
+          return;
+        }
+        var maxWmm = Math.max.apply(null, rendered.map(function (img) { return img.width * 0.264; }));
+        var maxHmm = Math.max.apply(null, rendered.map(function (img) { return img.height * 0.264; }));
+        var fitScale = Math.min(1, (pageW - 2 * margin) / maxWmm, (pageH - 2 * margin - labelH) / maxHmm);
+        maxWmm *= fitScale;
+        maxHmm *= fitScale;
+        var cellW = maxWmm + gap;
+        var cellH = maxHmm + labelH + gap;
+        var cols = Math.max(1, Math.floor((pageW - 2 * margin + gap) / cellW));
+        var rows = Math.max(1, Math.floor((pageH - 2 * margin + gap) / cellH));
+        var perPage = cols * rows;
         images.forEach(function (img, idx) {
           var col = idx % cols, row = Math.floor(idx / cols) % rows;
-          if (idx > 0 && idx % perPage === 0) { doc.addPage(); page++; }
-          var x = margin + col * cellW;
+          if (idx > 0 && idx % perPage === 0) doc.addPage();
+          var imgWmm = img ? img.width * 0.264 * fitScale : maxWmm;
+          var imgHmm = img ? img.height * 0.264 * fitScale : maxHmm;
+          var x = margin + col * cellW + (maxWmm - imgWmm) / 2;
           var y = margin + row * cellH;
           if (img) {
-            doc.addImage(img, 'PNG', x, y, bcWmm, bcHmm);
+            doc.addImage(img.dataUrl, 'PNG', x, y, imgWmm, imgHmm);
           }
           doc.setFontSize(7);
           doc.setTextColor(60, 60, 60);
-          doc.text(codes[idx], x + bcWmm / 2, y + bcHmm + labelH, { align: 'center' });
+          doc.text(codes[idx], margin + col * cellW + maxWmm / 2, y + maxHmm + labelH, { align: 'center' });
         });
         doc.save('barcodes.pdf');
         toast('PDF downloaded!');
@@ -1885,7 +2041,12 @@
       codes.forEach(function (code, idx) {
         var canvas = document.createElement('canvas');
         var done = function () {
-          images[idx] = canvas.toDataURL('image/png');
+          images[idx] = { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+          pending--;
+          if (pending === 0) finish();
+        };
+        var failed = function () {
+          failures.push(idx + 1);
           pending--;
           if (pending === 0) finish();
         };
@@ -1894,43 +2055,20 @@
           try {
             bwipjs.toCanvas(canvas, { bcid: 'datamatrix', text: code, scale: mod, padding: 2 });
             done();
-          } catch (e) { pending--; if (pending === 0) finish(); }
+          } catch (e) { failed(); }
         } else if (barcodeType === 'QR Code') {
-          var tmp = document.createElement('div');
-          document.body.appendChild(tmp);
-          tmp.style.cssText = 'position:absolute;left:-9999px';
-          var cell = Math.max(2, mod), size = cell * 33;
           try {
-            var qr = new QRCode(tmp, { text: code, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
-            setTimeout(function () {
-              var img = tmp.querySelector('img') || tmp.querySelector('canvas');
-              if (img) {
-                if (img.tagName === 'CANVAS') {
-                  images[idx] = img.toDataURL('image/png');
-                } else {
-                  var c2 = document.createElement('canvas');
-                  c2.width = img.naturalWidth || size; c2.height = img.naturalHeight || size;
-                  c2.getContext('2d').drawImage(img, 0, 0);
-                  images[idx] = c2.toDataURL('image/png');
-                }
-              }
-              document.body.removeChild(tmp);
-              pending--; if (pending === 0) finish();
-            }, 200);
-          } catch (e) { document.body.removeChild(tmp); pending--; if (pending === 0) finish(); }
+            canvas = createQrExportCanvas(code, mod);
+            done();
+          } catch (e) { failed(); }
         } else {
           var formatMap = { 'Code 128': 'CODE128', 'Code 39': 'CODE39', 'EAN-13': 'EAN13' };
           var fmt = formatMap[barcodeType] || 'CODE128';
           var encodeText = code;
-          if (barcodeType === 'EAN-13') {
-            var digs = code.replace(/\D/g, '');
-            if (digs.length === 13) digs = digs.slice(0, 12);
-            encodeText = (digs + '000000000000').slice(0, 12);
-          }
           try {
             JsBarcode(canvas, encodeText, { format: fmt, width: mod, height: h, displayValue: false, margin: 6, background: '#ffffff', lineColor: '#111111' });
             done();
-          } catch (e) { pending--; if (pending === 0) finish(); }
+          } catch (e) { failed(); }
         }
       });
     });
@@ -1988,7 +2126,8 @@
         type: barcodeType,
         template: document.getElementById('tpl-input').value,
         modSize: getI('mod-val'),
-        height: getI('h-val')
+        height: getI('h-val'),
+        gap: getI('gap-val')
       };
     }
 
@@ -2001,6 +2140,7 @@
       document.getElementById('tpl-input').value = p.template || '';
       document.getElementById('mod-val').value = Math.min(20, Math.max(1, p.modSize || 3));
       document.getElementById('h-val').value = Math.min(400, Math.max(10, p.height || 80));
+      document.getElementById('gap-val').value = Math.min(96, Math.max(12, p.gap || 24));
       closePresetsModal();
       autoRun();
     }

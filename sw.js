@@ -1,4 +1,4 @@
-const CACHE_NAME = 'label-studio-pwa-v1';
+const CACHE_NAME = 'label-studio-pwa-v3';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -10,10 +10,10 @@ const ASSETS_TO_CACHE = [
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png',
   './icons/icon.svg',
-  'https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
-  'https://cdn.jsdelivr.net/npm/bwip-js@3/dist/bwip-js-min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+  './vendor/JsBarcode.all.min.js',
+  './vendor/qrcode.min.js',
+  './vendor/bwip-js-min.js',
+  './vendor/jspdf.umd.min.js'
 ];
 
 // Install Event
