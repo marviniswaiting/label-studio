@@ -19,6 +19,11 @@ test('runtime dependencies are served locally and the PWA makes no third-party r
   expect(scriptSources.every(src => src.startsWith('./vendor/'))).toBe(true);
 });
 
+test('service worker cache revision is updated for the resizable-card release', async ({ request }) => {
+  const source = await (await request.get('/sw.js')).text();
+  expect(source).toContain("label-studio-pwa-v4");
+});
+
 test('product copy does not claim unsupported GS1 Data Matrix encoding', async ({ page, request }) => {
   await page.goto('/?copy=' + Date.now());
   await expect(page.locator('.nav-sub')).not.toContainText('GS1');

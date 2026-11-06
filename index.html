@@ -732,11 +732,13 @@
     /* Grid */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-min, 170px)), 1fr));
-      gap: var(--code-gap, 24px)
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-width, 170px)), var(--card-width, 170px)));
+      gap: var(--code-gap, 24px);
+      justify-content: start
     }
 
     .card {
+      position: relative;
       background: var(--bg2);
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -789,7 +791,7 @@
       background: #fff;
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: safe center;
       max-width: 100%
     }
 
@@ -797,7 +799,8 @@
     .card-bc canvas,
     .card-bc img {
       display: block;
-      max-width: 100%;
+      max-width: none;
+      flex: 0 0 auto;
       height: auto
     }
 
@@ -816,11 +819,47 @@
 
     .card-lbl {
       text-align: center;
-      padding: 6px 10px 10px;
+      padding: 6px 44px 10px 10px;
       font-size: 12px;
       font-family: 'SF Mono', 'Fira Code', monospace;
       border-top: 1px solid var(--border);
       word-break: break-all
+    }
+
+    .card-resize {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 44px;
+      height: 44px;
+      padding: 4px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text3);
+      cursor: nwse-resize;
+      touch-action: none;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .card-resize:hover,
+    .card-resize:focus-visible {
+      color: var(--accent);
+      background: var(--bg4);
+      outline: none
+    }
+
+    .card-resize svg {
+      width: 15px;
+      height: 15px;
+      pointer-events: none
+    }
+
+    body.code-resizing {
+      cursor: nwse-resize;
+      user-select: none
     }
 
     /* Status bar */
@@ -1844,7 +1883,38 @@
 
     function getI(id) { return parseInt(document.getElementById(id).value, 10) || 0; }
 
+    function renderedCodeWidth(container) {
+      var rendered = container.querySelector('.qr-shell, svg, canvas, img');
+      if (!rendered) return 0;
+      if (rendered.classList.contains('qr-shell')) return rendered.getBoundingClientRect().width;
+      if (rendered.tagName === 'CANVAS') return rendered.width;
+      if (rendered.tagName === 'IMG') return rendered.naturalWidth || rendered.width;
+      return parseFloat(rendered.getAttribute('width')) || rendered.getBoundingClientRect().width;
+    }
+
+    function updateGridCardWidth(requestedWidth) {
+      var grid = document.getElementById('grid');
+      var maxCodeWidth = Array.from(grid.querySelectorAll('.card-bc')).reduce(function (max, el) {
+        return Math.max(max, renderedCodeWidth(el));
+      }, 0);
+      var width = Number.isFinite(requestedWidth) ? requestedWidth : maxCodeWidth + 22;
+      width = Math.min(grid.clientWidth || width, Math.max(84, width));
+      grid.style.setProperty('--card-width', width + 'px');
+      return width;
+    }
+
+    function resizeGeneratedCodes(mod, cardWidth) {
+      var h = getI('h-val');
+      document.getElementById('mod-val').value = mod;
+      Array.from(document.querySelectorAll('#grid .card')).forEach(function (card, index) {
+        renderBarcode(card.querySelector('.card-bc'), codes[index], mod, h);
+      });
+      updateGridCardWidth(cardWidth);
+    }
+
     function generate() {
+      clearTimeout(tplTimer);
+      tplTimer = null;
       var tpl = document.getElementById('tpl-input').value;
       var mod = getI('mod-val'), h = getI('h-val'), gap = getI('gap-val');
       var grid = document.getElementById('grid');
@@ -1870,16 +1940,16 @@
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
           '</button></div>' +
           '<div class="card-bc"></div>' +
-          '<div class="card-lbl"></div>';
+          '<div class="card-lbl"></div>' +
+          '<button class="card-resize" type="button" title="Drag to resize all codes" aria-label="Resize all codes">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 16l8-8M12 20l8-8"/></svg>' +
+          '</button>';
         card.querySelector('.card-copy').dataset.code = code;
         card.querySelector('.card-lbl').textContent = code;
         grid.appendChild(card);
         renderBarcode(card.querySelector('.card-bc'), code, mod, h);
       });
-      var maxCodeWidth = Array.from(grid.querySelectorAll('.card-bc')).reduce(function (max, el) {
-        return Math.max(max, el.scrollWidth);
-      }, mod * 30);
-      grid.style.setProperty('--card-min', Math.max(170, maxCodeWidth + 22) + 'px');
+      updateGridCardWidth();
       var seen = {}, dups = 0; codes.forEach(function (c) { seen[c] ? dups++ : seen[c] = 1; });
       var n = codes.length + ' codes generated';
       if (dups > 0) n += ' · ' + dups + ' duplicate' + (dups > 1 ? 's' : '');
@@ -2094,6 +2164,48 @@
       if (navigator.clipboard) { navigator.clipboard.writeText(code).then(function () { toast('Copied: ' + code); }); }
       else { toast('Clipboard unavailable'); }
     });
+
+    (function setupCodeResizing() {
+      var grid = document.getElementById('grid');
+      var drag = null;
+
+      grid.addEventListener('pointerdown', function (e) {
+        var handle = e.target.closest('.card-resize');
+        if (!handle || !codes.length || drag) return;
+        e.preventDefault();
+        drag = {
+          handle: handle,
+          pointerId: e.pointerId,
+          startX: e.clientX,
+          startWidth: handle.closest('.card').getBoundingClientRect().width,
+          startMod: getI('mod-val')
+        };
+        handle.setPointerCapture(e.pointerId);
+        document.body.classList.add('code-resizing');
+      });
+
+      grid.addEventListener('pointermove', function (e) {
+        if (!drag || e.pointerId !== drag.pointerId) return;
+        e.preventDefault();
+        var maxWidth = grid.clientWidth;
+        var deltaX = e.clientX - drag.startX;
+        var targetWidth = Math.min(maxWidth, Math.max(84, drag.startWidth + deltaX));
+        var nextMod = Math.min(20, Math.max(1, drag.startMod + Math.round(deltaX / 72)));
+        if (nextMod !== getI('mod-val')) resizeGeneratedCodes(nextMod, targetWidth);
+        else updateGridCardWidth(targetWidth);
+      });
+
+      function endResize(e) {
+        if (!drag || e.pointerId !== drag.pointerId) return;
+        if (drag.handle.hasPointerCapture(e.pointerId)) drag.handle.releasePointerCapture(e.pointerId);
+        drag = null;
+        document.body.classList.remove('code-resizing');
+      }
+
+      grid.addEventListener('pointerup', endResize);
+      grid.addEventListener('pointercancel', endResize);
+      grid.addEventListener('lostpointercapture', endResize);
+    })();
 
     var focusActive = false;
     function setFocus(on) {
