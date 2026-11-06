@@ -1883,6 +1883,11 @@
 
     function getI(id) { return parseInt(document.getElementById(id).value, 10) || 0; }
 
+    function selectedBarcodeType() {
+      var active = document.querySelector('#type-drop .type-opt.active');
+      return active ? active.dataset.type : barcodeType;
+    }
+
     function renderedCodeWidth(container) {
       var rendered = container.querySelector('.qr-shell, svg, canvas, img');
       if (!rendered) return 0;
@@ -2061,6 +2066,7 @@
       closeAll();
       toast('Generating PDF…');
 
+      var exportType = selectedBarcodeType();
       var mod = getI('mod-val'), h = getI('h-val'), gapPx = getI('gap-val');
       var doc = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       var pageW = 210, pageH = 297;
@@ -2104,7 +2110,14 @@
           doc.setTextColor(60, 60, 60);
           doc.text(codes[idx], margin + col * cellW + maxWmm / 2, y + maxHmm + labelH, { align: 'center' });
         });
-        doc.save('barcodes.pdf');
+        var filenameMap = {
+          'QR Code': 'qr-codes.pdf',
+          'Data Matrix': 'data-matrix-codes.pdf',
+          'Code 128': 'code-128-barcodes.pdf',
+          'Code 39': 'code-39-barcodes.pdf',
+          'EAN-13': 'ean-13-barcodes.pdf'
+        };
+        doc.save(filenameMap[exportType] || 'codes.pdf');
         toast('PDF downloaded!');
       }
 
@@ -2121,19 +2134,19 @@
           if (pending === 0) finish();
         };
 
-        if (barcodeType === 'Data Matrix') {
+        if (exportType === 'Data Matrix') {
           try {
             bwipjs.toCanvas(canvas, { bcid: 'datamatrix', text: code, scale: mod, padding: 2 });
             done();
           } catch (e) { failed(); }
-        } else if (barcodeType === 'QR Code') {
+        } else if (exportType === 'QR Code') {
           try {
             canvas = createQrExportCanvas(code, mod);
             done();
           } catch (e) { failed(); }
         } else {
           var formatMap = { 'Code 128': 'CODE128', 'Code 39': 'CODE39', 'EAN-13': 'EAN13' };
-          var fmt = formatMap[barcodeType] || 'CODE128';
+          var fmt = formatMap[exportType] || 'CODE128';
           var encodeText = code;
           try {
             JsBarcode(canvas, encodeText, { format: fmt, width: mod, height: h, displayValue: false, margin: 6, background: '#ffffff', lineColor: '#111111' });

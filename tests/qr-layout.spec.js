@@ -321,6 +321,46 @@ test('QR PDF export includes the quiet zone and honours the selected spacing', a
   expect(result.secondX - result.firstX - result.firstWidthMm).toBeGreaterThanOrEqual(48 * 0.264 - 0.1);
 });
 
+test('PDF export follows the visibly selected QR type even if internal state is stale', async ({ page }) => {
+  await page.goto('/?pdf-selected-type=' + Date.now());
+  await page.locator('#tpl-input').fill('VISIBLE-QR-SELECTION');
+  await page.locator('#gen-btn2').click();
+
+  await page.evaluate(() => {
+    document.querySelectorAll('.type-opt').forEach(option => option.classList.remove('active'));
+    document.querySelector('[data-type="QR Code"]').classList.add('active');
+    document.querySelector('#type-val').textContent = 'QR Code';
+    window.__pdfImages = [];
+    window.__pdfFilename = '';
+    window.jspdf.jsPDF = function FakePdf() {
+      this.addPage = () => {};
+      this.addImage = (...args) => window.__pdfImages.push(args);
+      this.setFontSize = () => {};
+      this.setTextColor = () => {};
+      this.text = () => {};
+      this.save = filename => { window.__pdfFilename = filename; };
+    };
+  });
+
+  await page.locator('#exp-btn').click();
+  await page.locator('#exp-pdf').click();
+  await page.waitForFunction(() => window.__pdfFilename !== '');
+
+  const result = await page.evaluate(async () => {
+    const image = new Image();
+    image.src = window.__pdfImages[0][0];
+    await image.decode();
+    return {
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      filename: window.__pdfFilename,
+    };
+  });
+
+  expect(result.width).toBe(result.height);
+  expect(result.filename).toBe('qr-codes.pdf');
+});
+
 test('presets preserve the chosen spacing', async ({ page }) => {
   await selectQr(page);
   await page.locator('#gap-val').fill('44');
